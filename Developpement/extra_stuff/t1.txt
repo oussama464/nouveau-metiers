@@ -1,0 +1,18 @@
+---------------------------
+# create the training dataset by grouing on the job_id 
+and preserving the year order 
+the dataset will be similar to [job_id, [rowprop2015 ,row_pop2016,rowpop....],is_emerging_job]
+
+# apply the fourier transform 
+# apply other transforms 
+----------------------------
+#apply moving avrage smoothing on tse before feature extraction 
+# apply feature reduction:
+    1- feature selection: perform one way ANOVA for evry feature and the output  shoosing the top F1 score 
+    2- apply PCA  principle componnent analysis
+
+
+----------------------------
+# train a bunch of other classifiers 
+# try ridge regression as in the paper to predict groth 
+# try logitic regression to classify 
