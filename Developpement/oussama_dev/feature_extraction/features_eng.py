@@ -1,4 +1,6 @@
+from collections import Counter
 import numpy as np
+from scipy import stats
 from scipy.fft import fft
 from scipy.signal import welch, find_peaks
 import pywt
@@ -28,7 +30,7 @@ class FeatureExtractor:
         # reconstructed_signal = pywt.waverec(coeffs, waveletname)
         return coeffs
 
-    def calculate_statistics(self, list_values):
+    def calculate_statistics(self, list_values: list[float]) -> list[float]:
         n5 = np.nanpercentile(list_values, 5)
         n25 = np.nanpercentile(list_values, 25)
         n75 = np.nanpercentile(list_values, 75)
@@ -40,11 +42,31 @@ class FeatureExtractor:
         rms = np.nanmean(np.sqrt(list_values**2))
         return [n5, n25, n75, n95, median, mean, std, var, rms]
 
+    def calculate_crossings(self, list_values: list[float]) -> list[float]:
+        values_array = np.array(list_values)
+        # Calculate the mean value of the list values
+        mean_value = np.nanmean(values_array)
+        # Calculate zero crossings
+        zero_crossing_indices = np.nonzero(np.diff(values_array > 0))[0]
+        no_zero_crossings = len(zero_crossing_indices)
+        # Calculate mean crossings
+        mean_crossing_indices = np.nonzero(np.diff(values_array > mean_value))[0]
+        no_mean_crossings = len(mean_crossing_indices)
+        return [no_zero_crossings, no_mean_crossings]
+
+    def calculate_entropy(self, list_values: list[float]) -> list[float]:
+        counter_values = Counter(list_values).most_common()
+        probabilities = [elem[1] / len(list_values) for elem in counter_values]
+        entropy = stats.entropy(probabilities)
+        return [entropy]
+
     def get_dwt_features(self, signal: np.ndarray):
         dwt_features = []
         coeffs = self.dwt_transform(signal)
         for coeff in coeffs:
             dwt_features += self.calculate_statistics(coeff)
+            dwt_features += self.calculate_crossings(coeff)
+            dwt_features += self.calculate_entropy(coeff)
         return dwt_features
 
     def get_fft_values(self, x):

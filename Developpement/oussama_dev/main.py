@@ -6,6 +6,7 @@ from feature_selection.features_select import FeatureSelector
 from models.lr_classifier import evaluate_model
 from models.plotting_utils import plot_model_confusion_matrix
 
+
 FILE_PATH = "/home/bobo/Desktop/nouveau_metier/Developpement/raw_csv/extracted_jobs.csv"
 
 
