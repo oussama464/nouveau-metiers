@@ -10,7 +10,7 @@ from sklearn.decomposition import PCA
 class FeatureSelector:
     target: np.ndarray
     anova_k_features: int | str = "all"
-    pca_variance_threshold: float = 0.95
+    pca_variance_threshold: float = 0.99
 
     def __post_init__(self):
         "inverse the to_categorical transform in order to use select features"

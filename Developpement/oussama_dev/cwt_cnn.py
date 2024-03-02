@@ -99,7 +99,7 @@ def train_evaluate_cnn_model(
 if __name__ == "__main__":
     data = get_formatted_raw_data(FILE_PATH)
 
-    perepr = DataPreper(PaddingType.MAX_SIZE_NO_PAD)
+    perepr = DataPreper(PaddingType.MEAN)
     data = get_formatted_raw_data(FILE_PATH)
     X_train, X_test, y_train, y_test = perepr.split_dataset_into_train_test(data)
     scales = np.arange(1, 18)
