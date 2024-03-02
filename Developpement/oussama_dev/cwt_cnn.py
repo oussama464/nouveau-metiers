@@ -8,6 +8,8 @@ from data_preparation.data_prep import DataPreper, PaddingType
 import torch
 
 os.environ["KERAS_BACKEND"] = "torch"
+import keras
+from keras import layers
 from keras.utils import to_categorical
 
 
@@ -62,8 +64,31 @@ def reshape_data_for_cnn(X, scales, waveletname):
         coefs = coefs.reshape(-1)
         new_X.append(coefs)
     new_X = np.array(new_X)
-    reshaped = new_X.reshape((new_X.shape[0], 9, 9, 1))
+    reshaped = new_X.reshape((new_X.shape[0], len(scales), X.shape[1], 1))
     return reshaped
+
+
+def train_evaluate_cnn_model(input_shape: tuple[int, int, int]) -> float:
+    inputs = keras.Input(shape=input_shape)
+    x = layers.Conv2D(filters=32, kernel_size=3, activation="relu", padding="same")(
+        inputs
+    )
+    x = layers.MaxPooling2D(pool_size=2)(x)
+    x = layers.Conv2D(filters=64, kernel_size=3, activation="relu", padding="same")(x)
+    x = layers.MaxPooling2D(pool_size=2)(x)
+    x = layers.Conv2D(filters=128, kernel_size=3, activation="relu", padding="same")(x)
+    x = layers.Flatten()(x)
+    # x = layers.Dropout(0.5)(x)
+    outputs = layers.Dense(1, activation="sigmoid")(x)
+    model = keras.Model(inputs=inputs, outputs=outputs)
+    model.compile(
+        optimizer="rmsprop",
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
+    )
+    model.fit(X_train, y_train, epochs=9, batch_size=1)
+    test_loss, test_acc = model.evaluate(X_test, y_test)
+    return test_acc, test_loss
 
 
 if __name__ == "__main__":
@@ -72,11 +97,13 @@ if __name__ == "__main__":
     perepr = DataPreper(PaddingType.MEAN)
     data = get_formatted_raw_data(FILE_PATH)
     X_train, X_test, y_train, y_test = perepr.split_dataset_into_train_test(data)
-    y_train = to_categorical(y_train)
-    y_test = to_categorical(y_test)
-    scales = np.arange(1, 10)
+    scales = np.arange(1, 6)
+    print(len(scales))
+    ## 'mexh', 'morl'
     waveletname = "morl"
     X_train, X_test = reshape_data_for_cnn(
         X_train, scales, waveletname
     ), reshape_data_for_cnn(X_test, scales, waveletname)
-    print(X_train.shape, X_test.shape)
+    input_shape = (X_train.shape[1], X_train.shape[2], X_train.shape[3])
+    test_acc, test_loss = train_evaluate_cnn_model(input_shape)
+    print(f"Test accuracy is : {test_acc}")
