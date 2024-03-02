@@ -6,10 +6,6 @@ from scipy.signal import welch, find_peaks
 import pywt
 
 
-# os.environ["KERAS_BACKEND"] = "torch"
-# from keras.utils import to_categorical
-
-
 class FeatureExtractor:
     def __init__(self, dataset, lables) -> None:
         self.dataset = dataset
@@ -39,7 +35,7 @@ class FeatureExtractor:
         mean = np.nanmean(list_values)
         std = np.nanstd(list_values)
         var = np.nanvar(list_values)
-        rms = np.nanmean(np.sqrt(list_values**2))
+        rms = np.sqrt(np.nanmean(np.square(list_values)))
         return [n5, n25, n75, n95, median, mean, std, var, rms]
 
     def calculate_crossings(self, list_values: list[float]) -> list[float]:

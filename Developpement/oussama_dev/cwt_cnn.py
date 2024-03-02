@@ -65,18 +65,23 @@ def reshape_data_for_cnn(X, scales, waveletname):
         new_X.append(coefs)
     new_X = np.array(new_X)
     reshaped = new_X.reshape((new_X.shape[0], len(scales), X.shape[1], 1))
+    # normalize
+    reshaped = reshaped.astype("float32")
+    reshaped /= 255.0
     return reshaped
 
 
-def train_evaluate_cnn_model(input_shape: tuple[int, int, int]) -> float:
+def train_evaluate_cnn_model(
+    X_train, y_train, X_test, y_test, input_shape: tuple[int, int, int]
+) -> float:
     inputs = keras.Input(shape=input_shape)
     x = layers.Conv2D(filters=32, kernel_size=3, activation="relu", padding="same")(
         inputs
     )
     x = layers.MaxPooling2D(pool_size=2)(x)
     x = layers.Conv2D(filters=64, kernel_size=3, activation="relu", padding="same")(x)
-    x = layers.MaxPooling2D(pool_size=2)(x)
-    x = layers.Conv2D(filters=128, kernel_size=3, activation="relu", padding="same")(x)
+    # x = layers.MaxPooling2D(pool_size=2)(x)
+    # x = layers.Conv2D(filters=128, kernel_size=3, activation="relu", padding="same")(x)
     x = layers.Flatten()(x)
     # x = layers.Dropout(0.5)(x)
     outputs = layers.Dense(1, activation="sigmoid")(x)
@@ -94,10 +99,10 @@ def train_evaluate_cnn_model(input_shape: tuple[int, int, int]) -> float:
 if __name__ == "__main__":
     data = get_formatted_raw_data(FILE_PATH)
 
-    perepr = DataPreper(PaddingType.MEAN)
+    perepr = DataPreper(PaddingType.MAX_SIZE_NO_PAD)
     data = get_formatted_raw_data(FILE_PATH)
     X_train, X_test, y_train, y_test = perepr.split_dataset_into_train_test(data)
-    scales = np.arange(1, 6)
+    scales = np.arange(1, 18)
     print(len(scales))
     ## 'mexh', 'morl'
     waveletname = "morl"
@@ -105,5 +110,7 @@ if __name__ == "__main__":
         X_train, scales, waveletname
     ), reshape_data_for_cnn(X_test, scales, waveletname)
     input_shape = (X_train.shape[1], X_train.shape[2], X_train.shape[3])
-    test_acc, test_loss = train_evaluate_cnn_model(input_shape)
+    test_acc, test_loss = train_evaluate_cnn_model(
+        X_train, y_train, X_test, y_test, input_shape
+    )
     print(f"Test accuracy is : {test_acc}")
