@@ -4,33 +4,18 @@ from scipy import stats
 from scipy.fft import fft
 from scipy.signal import welch, find_peaks
 import pywt
-from sklearn.preprocessing import StandardScaler
+from sklearn.base import BaseEstimator, TransformerMixin
+from dataclasses import dataclass
 
 
-def standarize_data(X_train, X_test):
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    return X_train_scaled, X_test_scaled
+@dataclass
+class FeatureExtractor(BaseEstimator, TransformerMixin):
+    no_peaks: int = 2
+    waveletname: str = "db2"
 
+    def dwt_transform(self, signal: np.ndarray) -> list[np.ndarray]:
 
-class FeatureExtractor:
-    def __init__(self, dataset, lables) -> None:
-        self.dataset = dataset
-        self.lables = lables
-        self._X, self._y = self.extract_features_lables()
-
-    @property
-    def X(self):
-        return self._X
-
-    @property
-    def y(self):
-        return self._y
-
-    def dwt_transform(self, signal: np.ndarray, waveletname="db2") -> list[np.ndarray]:
-
-        coeffs = pywt.wavedec(signal, waveletname)
+        coeffs = pywt.wavedec(signal, self.waveletname)
         # reconstructed_signal = pywt.waverec(coeffs, waveletname)
         return coeffs
 
@@ -83,13 +68,13 @@ class FeatureExtractor:
         _, psd_values = welch(x, fs=f_s)
         return psd_values
 
-    def get_first_n_peaks(self, x, no_peaks=2):
+    def get_first_n_peaks(self, x):
         x_ = list(x)
 
-        if len(x_) >= no_peaks:
-            return x_[:no_peaks]
+        if len(x_) >= self.no_peaks:
+            return x_[: self.no_peaks]
         else:
-            missing_no_peaks = no_peaks - len(x_)
+            missing_no_peaks = self.no_peaks - len(x_)
             return x_ + [0] * missing_no_peaks
 
     def get_features(self, x):
@@ -97,17 +82,18 @@ class FeatureExtractor:
         peaks_values = self.get_first_n_peaks(np.array(x)[indices_peaks])
         return peaks_values
 
-    def extract_features_lables(self):
-        list_of_features = []
-        list_of_lables = []
-        for signal_no in range(0, len(self.dataset)):
-            features = []
-            list_of_lables.append(self.lables[signal_no])
+    def fit(self, X, y=None):
+        return self
 
-            signal = self.dataset[signal_no, :]
+    def transform(self, X, y=None):
+        list_of_features = []
+        for signal_no in range(0, len(X)):
+            features = []
+
+            signal = X[signal_no, :]
             features += self.get_features(self.get_fft_values(signal))
             features += self.get_features(self.get_psd_values(signal))
             features += self.calculate_statistics(signal)
             features += self.get_dwt_features(signal)
             list_of_features.append(features)
-        return np.array(list_of_features), np.array(list_of_lables)
+        return np.array(list_of_features)

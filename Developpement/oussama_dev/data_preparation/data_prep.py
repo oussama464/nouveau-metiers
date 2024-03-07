@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import pandas as pd
 import numpy as np
 from typing import Any, Callable, Optional
-from sklearn.model_selection import train_test_split
+from sklearn.base import BaseEstimator, TransformerMixin
 from enum import StrEnum
 
 
@@ -66,53 +66,37 @@ class DataPreper:
                 new_padded_data.append(item)
         return new_padded_data
 
-    def rolling_window_smooting_pandas(self, data, window_size=3):
-        rolling_avrage_smoothed = []
-        for item in data:
-            job_code, values, is_emerging = item
-            series = pd.Series(values)
-            rolling_avrage = series.rolling(window=window_size).mean()
-            # rolling_avrage_smoothed[job_code] = rolling_avrage.to_list()
-            rolling_avrage.dropna(inplace=True)
-            rolling_avrage_smoothed.append(
-                [job_code, rolling_avrage.to_list(), is_emerging]
-            )
-        return rolling_avrage_smoothed
-
-    def rolling_window_smoothing(self, data, window_size):
-        rolling_avrage_smoothed = []
-        for item in data:
-            job_code, values, is_emerging = item
-            adjusted_values = []
-            for i in range(len(values)):
-                window = values[max(0, i - window_size + 1) : i + 1]
-                adjusted_values.append(sum(window) / len(window))
-            rolling_avrage_smoothed.append([job_code, adjusted_values, is_emerging])
-        return rolling_avrage_smoothed
-
-    def split_dataset_into_train_test(
-        self, dataset: list[list]
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def prepare(self, data):
         if self.padding_strategy:
-            padded_data = self.padding_strategy(dataset)
+            padded_data = self.padding_strategy(data)
+
+            X = [item[1] for item in padded_data]
+            y = [item[2] for item in padded_data]
+
+            # Convert lists to numpy arrays
+            X_array = np.array(X)
+            y_array = np.array(y, dtype=bool)
+            return X_array, y_array
         else:
             raise ValueError("padding strategy was not set")
-        X = [item[1] for item in padded_data]
-        y = [item[2] for item in padded_data]
 
-        # Convert lists to numpy arrays
-        X_array = np.array(X)
-        y_array = np.array(y, dtype=bool)
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_array, y_array, test_size=0.33, random_state=42, stratify=y_array
-        )
-        # print(Counter(y))
-        # print(Counter(y_train))
-        # print(Counter(y_test))
-        # one hot encode target
-        # y_train = to_categorical(y_train)
-        # y_test = to_categorical(y_test)
-        # y_test = np.argmax(y_test, axis=1)
-        # y_train = np.argmax(y_train, axis=1)
 
-        return X_train, X_test, y_train, y_test
+@dataclass
+class DataSmoother(BaseEstimator, TransformerMixin):
+    smoothing_window_size: int = 3
+
+    def fit(self, X, y=None):
+        return self
+
+    def rolling_window_smoothing(self, data):
+        rolling_avrage_smoothed = []
+        for item in data:
+            adjusted_values = []
+            for i in range(len(item)):
+                window = item[max(0, i - self.smoothing_window_size + 1) : i + 1]
+                adjusted_values.append(sum(window) / len(window))
+            rolling_avrage_smoothed.append(adjusted_values)
+        return np.array(rolling_avrage_smoothed)
+
+    def transform(self, X, y=None):
+        return self.rolling_window_smoothing(X)

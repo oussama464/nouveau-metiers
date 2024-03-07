@@ -5,12 +5,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from typing import Any
 from data_preparation.data_prep import DataPreper, PaddingType
-import torch
 
-os.environ["KERAS_BACKEND"] = "torch"
+# import torch
+from sklearn.model_selection import train_test_split
+
+# os.environ["KERAS_BACKEND"] = "torch"
 import keras
 from keras import layers
 from keras.utils import to_categorical
+from imblearn.over_sampling import SMOTE, BorderlineSMOTE, SVMSMOTE, ADASYN
+from collections import Counter
 
 
 FILE_PATH = "/home/bobo/Desktop/nouveau_metier/Developpement/raw_csv/extracted_jobs.csv"
@@ -89,19 +93,28 @@ def train_evaluate_cnn_model(
     model.compile(
         optimizer="rmsprop",
         loss="binary_crossentropy",
-        metrics=["accuracy"],
+        metrics=["accuracy", keras.metrics.F1Score()],
     )
-    model.fit(X_train, y_train, epochs=9, batch_size=1)
-    test_loss, test_acc = model.evaluate(X_test, y_test)
-    return test_acc, test_loss
+    model.fit(X_train, y_train, epochs=5, batch_size=1)
+    test_loss, test_f1, test_acc = model.evaluate(X_test, y_test)
+    return test_acc, test_f1, test_loss
 
 
 if __name__ == "__main__":
     data = get_formatted_raw_data(FILE_PATH)
+    prep = DataPreper(PaddingType.MAX_SIZE_NO_PAD)
+    X, y = prep.prepare(data)
+    y = np.array([1 if i else 0 for i in y])
+    # y = to_categorical(y)
 
-    perepr = DataPreper(PaddingType.MEAN)
-    data = get_formatted_raw_data(FILE_PATH)
-    X_train, X_test, y_train, y_test = perepr.split_dataset_into_train_test(data)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.5, random_state=42, stratify=y
+    )
+    oversample = SMOTE(k_neighbors=2)
+    X_train, y_train = oversample.fit_resample(X_train, y_train)
+    y_test = y_test.reshape((len(y_test), 1))
+    y_train = y_train.reshape(len(y_train), 1)
+
     scales = np.arange(1, 18)
     print(len(scales))
     ## 'mexh', 'morl'
@@ -110,7 +123,9 @@ if __name__ == "__main__":
         X_train, scales, waveletname
     ), reshape_data_for_cnn(X_test, scales, waveletname)
     input_shape = (X_train.shape[1], X_train.shape[2], X_train.shape[3])
-    test_acc, test_loss = train_evaluate_cnn_model(
+
+    test_acc, test_f1, test_loss = test_loss = train_evaluate_cnn_model(
         X_train, y_train, X_test, y_test, input_shape
     )
-    print(f"Test accuracy is : {test_acc}")
+    print(end="\n")
+    print(test_acc, test_f1, test_loss)

@@ -1,10 +1,30 @@
 import pandas as pd
 from typing import Any
-from data_preparation.data_prep import DataPreper, PaddingType
+from data_preparation.data_prep import DataPreper, PaddingType, DataSmoother
 from feature_extraction.features_eng import FeatureExtractor
 from feature_selection.features_select import FeatureSelector
-from models.lr_classifier import evaluate_model
-from models.plotting_utils import plot_model_confusion_matrix
+import numpy as np
+
+# from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import (
+    KFold,
+    LeaveOneOut,
+    StratifiedKFold,
+    RepeatedKFold,
+    RepeatedStratifiedKFold,
+)
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import f1_score
+from collections import Counter
+import matplotlib.pyplot as plt
+from imblearn.over_sampling import SMOTE, BorderlineSMOTE, SVMSMOTE, ADASYN
+from imblearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.svm import OneClassSVM
+from sklearn.model_selection import GridSearchCV
 
 
 FILE_PATH = "/home/bobo/Desktop/nouveau_metier/Developpement/raw_csv/extracted_jobs.csv"
@@ -13,39 +33,52 @@ FILE_PATH = "/home/bobo/Desktop/nouveau_metier/Developpement/raw_csv/extracted_j
 def get_formatted_raw_data(file_path: str) -> list[list[Any]]:
 
     df = pd.read_csv(file_path)
+    df = df.sort_values(by="date")
     df_grouped = df.groupby(["job_code", "is_emerging_job"]).agg(list).reset_index()
-
-    # Transforming the grouped dataframe to the desired format
     training_data = df_grouped.apply(
         lambda row: [row["job_code"], row["rawpop"], row["is_emerging_job"]], axis=1
     ).tolist()
     return training_data
 
 
-def prepare_model_data():
-    perepr = DataPreper(PaddingType.MEAN)
+def get_model():
+    return Pipeline(
+        steps=[
+            ("over_sample", SMOTE(k_neighbors=4)),
+            ("smoother", DataSmoother()),
+            ("f_extractor", FeatureExtractor()),
+            ("f_selector", FeatureSelector()),
+            ("scaler", StandardScaler()),
+            (
+                "model",
+                GradientBoostingClassifier(
+                    random_state=42,
+                    max_depth=3,
+                    max_features="log2",
+                    criterion="friedman_mse",
+                    subsample=0.2,
+                    n_estimators=8,
+                ),
+            ),
+        ]
+    )
+
+
+def evaluate_model(cv):
     data = get_formatted_raw_data(FILE_PATH)
-    smoothed_data = perepr.rolling_window_smoothing(data, 3)
-    X_train, X_test, y_train, y_test = perepr.split_dataset_into_train_test(
-        smoothed_data
-    )
-    f_extract_test, f_extract_train = FeatureExtractor(
-        X_test, y_test
-    ), FeatureExtractor(X_train, y_train)
-    X_futures_test, y_test = f_extract_test.X, f_extract_test.y
-    X_futures_train, y_train = f_extract_train.X, f_extract_train.y
-    f_selector = FeatureSelector(
-        y_train, anova_k_features=10, pca_variance_threshold=0.99
-    )
-    X_train_fs, X_test_fs, scores = f_selector.select_features(
-        X_futures_train, X_futures_test
-    )
-    # f_selector.bar_plot_features_scores(scores)
-    X_train_reduced, X_test_reduced = f_selector.apply_pca(X_train_fs, X_test_fs)
-    return X_train_reduced, X_test_reduced, y_train, y_test
+    prep = DataPreper(PaddingType.MAX_SIZE_NO_PAD)
+    X, y = prep.prepare(data)
+    model = get_model()
+    # ‘precision’ ,"recall",roc_auc'
+    scores = cross_val_score(model, X, y, scoring="accuracy", cv=cv, n_jobs=-1)
+    return np.mean(scores), np.std(scores)
 
 
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test = prepare_model_data()
-    predictions, score = evaluate_model(X_train, X_test, y_train, y_test)
-    plot_model_confusion_matrix(y_test, predictions, score)
+    # cv = KFold(n_splits=10, random_state=42, shuffle=True)
+    # cv = LeaveOneOut()
+    # cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+    # cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
+    cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=5, random_state=42)
+    acc, std = evaluate_model(cv)
+    print(f"acc = {acc} , std = {std}")
